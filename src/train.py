@@ -19,9 +19,10 @@ warnings.filterwarnings("ignore")
 
 sys.path.insert(0, os.path.dirname(__file__))
 from utils import (
-    load_data, select_features, evaluate_model,
+    load_data, evaluate_model,
     save_model, save_comparison, IMAGES_DIR, REPORTS_DIR
 )
+from feature_extractor import extract_features, FEATURE_ORDER
 
 # 한글 폰트 설정
 def set_korean_font():
@@ -131,9 +132,14 @@ def main():
     print(f"결측치: {df.isnull().sum().sum()}")
     print(f"중복 행: {df.duplicated().sum()}")
 
-    X, y = select_features(df)
-    feature_names = X.columns.tolist()
-    print(f"\n학습 feature ({len(feature_names)}개): {feature_names}")
+    # CSV 원본의 feature 값 대신 extract_features(url)로 재계산해
+    # 학습/예측 feature 추출 방식을 완전히 일치시킨다.
+    print("\nURL에서 feature 재계산 중...")
+    feature_rows = df["url"].apply(extract_features).tolist()
+    X = pd.DataFrame(feature_rows, columns=FEATURE_ORDER)
+    y = df["label"]
+    feature_names = FEATURE_ORDER
+    print(f"학습 feature ({len(feature_names)}개): {feature_names}")
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
@@ -191,7 +197,31 @@ def main():
     print("=" * 60)
     print(comparison_df.to_string(index=False))
 
-    save_comparison(records)
+    # v2 결과 저장
+    v2_path = os.path.join(REPORTS_DIR, "model_comparison_v2.csv")
+    comparison_df.to_csv(v2_path, index=False)
+    print(f"v2 성능 비교표 저장: {v2_path}")
+
+    # v1 결과와 비교 출력
+    v1_path = os.path.join(REPORTS_DIR, "model_comparison.csv")
+    if os.path.exists(v1_path):
+        v1_df = pd.read_csv(v1_path)
+        print(f"\n{'='*60}")
+        print("v1(CSV feature) vs v2(extract_features 재계산) 비교")
+        print("=" * 60)
+        metrics = ["Accuracy", "Precision", "Recall", "F1-score"]
+        for _, row_v2 in comparison_df.iterrows():
+            model = row_v2["Model"]
+            row_v1 = v1_df[v1_df["Model"] == model]
+            if row_v1.empty:
+                continue
+            print(f"\n[{model}]")
+            for m in metrics:
+                v1_val = row_v1[m].values[0]
+                v2_val = row_v2[m]
+                diff = v2_val - v1_val
+                sign = "+" if diff >= 0 else ""
+                print(f"  {m:<12s}: {v1_val:.4f} → {v2_val:.4f}  ({sign}{diff:.4f})")
 
     # model_report.md
     report_path = os.path.join(REPORTS_DIR, "model_report.md")
@@ -201,8 +231,9 @@ def main():
         f.write(f"- 전체 데이터: {df.shape[0]}행 × {df.shape[1]}열\n")
         f.write(f"- 학습 feature 수: {len(feature_names)}\n")
         f.write(f"- 정상(0): {(y == 0).sum()}건\n")
-        f.write(f"- 피싱(1): {(y == 1).sum()}건\n\n")
-        f.write("## 성능 비교\n\n")
+        f.write(f"- 피싱(1): {(y == 1).sum()}건\n")
+        f.write("- feature 추출 방식: `feature_extractor.extract_features(url)` (www. 보정 포함)\n\n")
+        f.write("## 성능 비교 (v2 — extract_features 재계산)\n\n")
         f.write(comparison_df.to_markdown(index=False))
         f.write("\n\n## 평가 지표 설명\n\n")
         f.write("- **Accuracy**: 전체 정확도\n")

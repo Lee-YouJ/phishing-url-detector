@@ -1,0 +1,7 @@
+url,expected,prediction,pass,phishing_probability,risk_score,risk_level
+https://www.naver.com,정상,정상,True,0.004,0.44,안전
+https://www.google.com,정상,정상,True,0.006,0.64,안전
+https://www.github.com,정상,정상,True,0.006,0.64,안전
+https://www.microsoft.com,정상,정상,True,0.002,0.22,안전
+https://www.daum.net,정상,정상,True,0.005,0.53,안전
+https://www.kangnam.ac.kr,정상,정상,True,0.002,0.19,안전
